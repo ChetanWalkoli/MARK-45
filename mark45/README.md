@@ -1,24 +1,29 @@
-# 🤖 MARK 45 — Phase 1 MVP (RTX 3050 Optimized)
+# 🤖 MARK 45 — Phase 2: Persistent Memory & RAG (RTX 3050 Optimized)
 
-MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 1 MVP establishes the streaming chat completion pipeline optimized for low VRAM targets (like the RTX 3050 8GB).
+MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 2 implementation builds on the streaming MVP, adding private vector storage (Qdrant), CPU-locked embeddings (`all-MiniLM-L6-v2`), conversational memory, and local document ingestion (RAG) — completely offline.
 
 ---
 
-## ⚙️ Project Structure (Phase 1)
+## ⚙️ Project Structure (Phase 2)
 ```text
 mark45/
 ├── core/
 │   ├── vram.py          # GPU VRAM detection and static ceiling check
-│   └── model_client.py  # Async Ollama model inference client
+│   └── model_client.py  # Async Ollama model client
+├── memory/
+│   ├── embeddings.py    # sentence-transformers CPU-locked embeddings
+│   ├── vector_store.py  # Qdrant client wrapper
+│   ├── manager.py       # Memory retrieval, ranking, and context injection
+│   └── ingest.py        # Local file ingestion script (.txt, .md, .pdf)
 ├── config/
 │   ├── settings.py      # App configurations (Pydantic Settings)
 │   └── system_prompt.txt# System directives for the AI
 ├── api/
-│   └── main.py          # FastAPI server gateway
+│   └── main.py          # FastAPI server gateway (integrated with RAG)
 ├── ui/
 │   └── index.html       # Vanilla JS SSE-powered chat UI
 ├── requirements.txt     # Python package requirements
-└── docker-compose.yml   # Services configuration
+└── docker-compose.yml   # Services configuration (Qdrant)
 ```
 
 ---
@@ -26,26 +31,20 @@ mark45/
 ## 🚀 Setup & Execution
 
 ### Prerequisites
-1. Install [Ollama](https://ollama.com/) on your local machine.
-2. Install [Python 3.11](https://www.python.org/downloads/release/python-3110/).
+1. Install [Docker & Docker Compose](https://docs.docker.com/engine/install/).
+2. Install [Ollama](https://ollama.com/) (and pull the `llama3.2:3b` model).
+3. Install [Python 3.11](https://www.python.org/downloads/release/python-3110/).
 
-### 1. Start Ollama and Pull the Model
-Open your terminal and pull the target 3B model (low VRAM friendly):
+### 1. Start Qdrant Vector Database
+Run Qdrant in the background via Docker:
 ```bash
-ollama pull llama3.2:3b
+# Inside the mark45/ directory:
+docker compose up -d
 ```
-Ensure the Ollama backend is running (typically runs in background automatically, listening on `http://localhost:11434`).
+Verify Qdrant is running by checking `http://localhost:6333` in your browser.
 
-### 2. Configure Environment variables (Optional)
-If you need to customize default settings, create a `.env` file in the `mark45/` directory:
-```env
-MODEL_NAME=llama3.2:3b
-OLLAMA_URL=http://localhost:11434
-APP_PORT=8000
-```
-
-### 3. Install Python Dependencies
-From the `mark45/` directory, create a virtual environment and install the required modules:
+### 2. Install Python Dependencies
+Create a virtual environment and install the required modules:
 ```bash
 python -m venv venv
 # On Windows PowerShell:
@@ -55,54 +54,60 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 ```
+*(Note: Installing `sentence-transformers` for the first time will automatically download the lightweight `all-MiniLM-L6-v2` model on CPU. PyTorch will automatically run on CPU to protect your GPU VRAM.)*
 
-### 4. Start the FastAPI API Server
-Start the backend app by running the following command in the `mark45/` directory (with virtual env active):
+### 3. Start the FastAPI API Server
+Start the backend app:
 ```bash
 python -m uvicorn mark45.api.main:app --reload --port 8000
 ```
 
 ---
 
+## 📁 Document Ingestion (RAG)
+
+To feed private documentation (.txt, .md, or .pdf) to MARK 45's memory base, use the standalone `ingest.py` script:
+
+```bash
+# Ingest a single document
+python mark45/memory/ingest.py path/to/document.md
+
+# Ingest an entire directory of documents
+python mark45/memory/ingest.py path/to/docs_folder/
+```
+
+---
+
 ## 🔍 Verification Step
 
-### 1. Health & VRAM Check
-On application startup, you will see a console message estimating VRAM usage:
+### 1. Ingest a Test Document
+Create a test file `knowledge.txt` with specific custom information:
 ```text
-[VRAM CHECK] ✅ VRAM Check Passed: GPU VRAM detection unavailable (falling back to static checks). Model llama3.2:3b (~3.0B) requires ~3.15 GB VRAM.
-[VRAM OK] Model fits within the 8GB VRAM limit.
+Chetan Walkoli is working on the MARK 45 OS Project, which is a futuristic local-first co-pilot interface. The project utilizes Qdrant as its memory matrix.
 ```
-If you choose a model larger than 3B, it will warn you if it might exceed the VRAM of your RTX 3050.
-
-Verify the server is healthy by visiting:
-`http://localhost:8000/api/health`
-
-Expected response:
-```json
-{
-  "status": "online",
-  "app": "MARK 45 OS",
-  "model": "llama3.2:3b",
-  "ollama_connected": true
-}
+Ingest it:
+```bash
+python mark45/memory/ingest.py knowledge.txt
 ```
 
-### 2. Test /chat via cURL
-Test non-streaming response via terminal:
+### 2. Query the Assistant
+Navigate to the UI at `http://localhost:8000/` or run a cURL call:
 ```bash
 curl -X POST "http://localhost:8000/api/chat" \
      -H "Content-Type: application/json" \
-     -d '{"messages": [{"role": "user", "content": "Hello MARK 45, run diagnostics."}]}'
-```
-Expected output:
-```json
-{
-  "response": "Hello Chetan. Interface active. System diagnostics normal. How can I assist you today?"
-}
+     -d '{"messages": [{"role": "user", "content": "What database does Chetan use for the MARK 45 memory matrix?"}]}'
 ```
 
-### 3. Open the UI
-Since FastAPI serves the single-file UI at root, simply open your web browser and navigate to:
-`http://localhost:8000/`
-
-You will see the dark-themed Iron Man styled layout. Type a message and hit **SEND**. It will stream the response word-by-word via Server-Sent Events (SSE).
+Expected Output:
+* In your FastAPI console, you will see a detailed reranking log outputting retrieved chunks, scores, and decay values:
+  ```text
+  --- RAG RETRIEVAL LOG FOR QUERY: 'What database does Chetan use for the MARK 45 memory matrix?' ---
+  Hit: 'Chetan Walkoli is working on the MARK 45 OS Project, which is a futuristic local-first...' | Relevance: 0.725, Recency: 0.998, Importance: 1.000 | Final Rerank Score: 0.862
+  Retrieved 1 memories above threshold of 0.35.
+  ```
+* The API returns the response utilizing the ingested context:
+  ```json
+  {
+    "response": "Chetan Walkoli uses Qdrant as the vector database for the MARK 45 memory matrix."
+  }
+  ```
