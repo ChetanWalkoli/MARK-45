@@ -1,0 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ─── Google Fonts (must come before @tailwind) ─────────────────────────── */
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    /* iOS safe area */
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  body {
+    @apply bg-dark-bg text-gray-200 font-sans antialiased;
+    overflow-x: hidden;
+    overflow-y: auto;
+    /* Prevent double-tap zoom on mobile */
+    touch-action: manipulation;
+    /* Smooth font on retina */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Mobile-friendly tap targets */
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  /* Prevent horizontal scroll */
+  * { box-sizing: border-box; }
+  img, video { max-width: 100%; }
+}
+
+
+/* ─── Design System Tokens ─────────────────────────────────────────────────── */
+:root {
+  --cyan: #00CFFF;
+  --gold: #FFB347;
+  --bg:   #050505;
+  --surface: #0A0A0C;
+}
+
+/* ─── Glass Panel ──────────────────────────────────────────────────────────── */
+.glass-panel {
+  background: rgba(8, 10, 18, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 207, 255, 0.10);
+}
+
+/* Glowing border variant */
+.glass-panel-glow {
+  background: rgba(8, 10, 18, 0.80);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 207, 255, 0.18);
+  box-shadow: 0 0 40px rgba(0, 207, 255, 0.05), inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+/* ─── Glow text ────────────────────────────────────────────────────────────── */
+.glow-text {
+  text-shadow: 0 0 20px rgba(0, 207, 255, 0.4), 0 0 60px rgba(0, 207, 255, 0.15);
+}
+
+/* ─── Gradient text ────────────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(90deg, var(--cyan) 0%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Scan lines (premium texture) ────────────────────────────────────────── */
+.scan-lines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  z-index: 0;
+}
+
+/* ─── Subtle grid overlay ──────────────────────────────────────────────────── */
+.grid-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image:
+    linear-gradient(rgba(0,207,255,1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,207,255,1) 1px, transparent 1px);
+  background-size: 80px 80px;
+  z-index: 0;
+}
+
+/* ─── Glowing border on hover (interactive elements) ─────────────────────── */
+.glow-border {
+  border: 1px solid rgba(0, 207, 255, 0.12);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.glow-border:hover {
+  border-color: rgba(0, 207, 255, 0.35);
+  box-shadow: 0 0 20px rgba(0, 207, 255, 0.08);
+}
+.glow-border-gold:hover {
+  border-color: rgba(255, 179, 71, 0.35);
+  box-shadow: 0 0 20px rgba(255, 179, 71, 0.08);
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,207,255,0.2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,207,255,0.4); }
+
+/* ─── Animations ───────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.animate-fade-in { animation: fadeIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+@keyframes glowPulse {
+  0%,100% { box-shadow: 0 0 16px rgba(0,207,255,0.2); }
+  50%     { box-shadow: 0 0 32px rgba(0,207,255,0.5), 0 0 64px rgba(0,207,255,0.1); }
+}
+.animate-glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
+
+@keyframes borderFlow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ─── Input focus glow ─────────────────────────────────────────────────────── */
+.input-glow:focus-within {
+  box-shadow: 0 0 0 1px rgba(0,207,255,0.3), 0 0 24px rgba(0,207,255,0.08);
+}
+
+/* ─── Prose (markdown) ─────────────────────────────────────────────────────── */
+.prose pre {
+  @apply bg-[#000000] rounded-xl p-4 overflow-x-auto my-4;
+  border: 1px solid rgba(0,207,255,0.12);
+}
+.prose code {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--cyan);
+  font-size: 0.875em;
+}
+.prose pre code { color: #e2e8f0; }
+.prose p         { @apply mb-4 leading-relaxed; }
+.prose p:last-child { @apply mb-0; }
+.prose ul        { @apply list-disc pl-5 mb-4; }
+.prose ol        { @apply list-decimal pl-5 mb-4; }
+.prose h1, .prose h2, .prose h3 {
+  font-family: 'Orbitron', sans-serif;
+  color: #fff;
+  margin: 1.5rem 0 0.75rem;
+  font-weight: 700;
+}
+.prose a { color: var(--cyan); text-decoration: underline; }
+.prose blockquote {
+  border-left: 3px solid rgba(0,207,255,0.4);
+  padding-left: 1rem;
+  color: rgba(255,255,255,0.6);
+  font-style: italic;
+}
+/* logo trigger */
