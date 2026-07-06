@@ -36,7 +36,7 @@ class OllamaClient:
                     logger.error(f"Ollama server returned status {response.status_code}")
                     return False
             except Exception as e:
-                print("\n❌ Ollama service is not running!")
+                print("\n[ERROR] Ollama service is not running!")
                 print(f"Please start Ollama service. Ensure it is accessible at: {self.ollama_url}\n")
                 return False
 
@@ -54,9 +54,9 @@ class OllamaClient:
                             break
                     
                     if not model_found:
-                        print(f"\n❌ Model '{self.model_name}' is not pulled in Ollama!")
+                        print(f"\n[ERROR] Model '{self.model_name}' is not pulled in Ollama!")
                         print(f"Please run this command in your terminal:")
-                        print(f"👉 ollama pull {self.model_name}\n")
+                        print(f"  ollama pull {self.model_name}\n")
                         return False
                     return True
                 else:

@@ -95,8 +95,8 @@ def estimate_fits(model_name: str) -> tuple[bool, str]:
         
         # If the actual free VRAM is less than estimated requirement, warn
         if actual_free_gb < estimated_total_vram_gb:
-            return False, f"⚠️ WARNING: Insufficient VRAM! {status_msg}"
-        return True, f"✅ VRAM OK: {status_msg}"
+            return False, f"[WARNING]: Insufficient VRAM! {status_msg}"
+        return True, f"[OK]: VRAM OK: {status_msg}"
     else:
         # Fallback static estimation (optimizing for 8GB device with 7GB target limit)
         status_msg = (
@@ -104,5 +104,5 @@ def estimate_fits(model_name: str) -> tuple[bool, str]:
             f"Model {model_name} (~{param_size}B) requires ~{estimated_total_vram_gb:.2f} GB VRAM."
         )
         if estimated_total_vram_gb > target_limit_gb:
-            return False, f"⚠️ WARNING: Model might exceed VRAM! {status_msg} Limit for RTX 3050 is ~7.0 GB."
-        return True, f"✅ VRAM Check Passed: {status_msg}"
+            return False, f"[WARNING]: Model might exceed VRAM! {status_msg} Limit for RTX 3050 is ~7.0 GB."
+        return True, f"[OK]: VRAM Check Passed: {status_msg}"
