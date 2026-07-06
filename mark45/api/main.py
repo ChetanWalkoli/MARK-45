@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from mark45.config.settings import settings
 from mark45.core.model_client import OllamaClient
 from mark45.memory.manager import MemoryManager
+from mark45.agents.coding_agent import CodingAgent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +36,9 @@ ollama_client = OllamaClient(
 # Initialize Memory Manager
 memory_manager = MemoryManager()
 
+# Initialize Coding Agent
+coding_agent = CodingAgent(ollama_client=ollama_client)
+
 # Request & Response Schemas
 class Message(BaseModel):
     role: str
@@ -46,6 +50,14 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+
+class AgentRequest(BaseModel):
+    goal: str
+
+class AgentResponse(BaseModel):
+    final_answer: str
+    steps: List[Dict[str, Any]]
+
 
 def load_system_prompt() -> str:
     """Loads the system prompt from settings.system_prompt_path."""
@@ -209,4 +221,18 @@ async def get_logo():
         if os.path.exists(p):
             return p
     raise HTTPException(status_code=404, detail="Logo not found")
+
+
+@app.post("/api/agent/code", response_model=AgentResponse)
+async def run_agent_code(request: AgentRequest):
+    """
+    Executes a coding task securely using the ReAct loop and allowlisted tools.
+    """
+    try:
+        final_answer, steps = await coding_agent.execute_task(request.goal)
+        return AgentResponse(final_answer=final_answer, steps=steps)
+    except Exception as e:
+        logger.error(f"Agent task execution failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
