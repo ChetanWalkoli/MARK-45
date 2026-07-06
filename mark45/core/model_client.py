@@ -94,7 +94,7 @@ class OllamaClient:
                         yield f"Error: Ollama server returned status {response.status_code}"
                         return
                     
-                    async for line in response.iter_lines():
+                    async for line in response.aiter_lines():
                         if line:
                             try:
                                 chunk = json.loads(line)
