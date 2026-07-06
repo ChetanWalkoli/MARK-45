@@ -1,10 +1,10 @@
-# 🤖 MARK 45 — Phase 3: Secure Tools & Coding Agent (RTX 3050 Optimized)
+# 🤖 MARK 45 — Phase 4: Local Voice Interface (RTX 3050 Optimized)
 
-MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 3 implementation introduces a ReAct-style coding agent capable of writing, executing, and debugging code securely using allowlisted sandbox tools.
+MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 4 implementation adds a fully local voice link enabling hands-free microphone input, speech-to-text transcription (via faster-whisper on CPU), local speech synthesis (Piper TTS with native system speaker fallbacks), and dynamic barge-in (interruption) control.
 
 ---
 
-## ⚙️ Project Structure (Phase 3)
+## ⚙️ Project Structure (Phase 4)
 ```text
 mark45/
 ├── core/
@@ -23,6 +23,10 @@ mark45/
 │   └── terminal_tool.py # Allowlisted command execution shell
 ├── agents/
 │   └── coding_agent.py  # ReAct reasoning loop (8 steps max safety limit)
+├── voice/
+│   ├── stt.py           # faster-whisper CPU-locked speech transcriber
+│   ├── tts.py           # Piper TTS with native OS speaker fallback
+│   └── loop.py          # Audio capture, energy VAD, and barge-in execution loop
 ├── sandbox/             # Workspace isolation folder for file/python runs
 ├── config/
 │   ├── settings.py      # App configurations (Pydantic Settings)
@@ -44,64 +48,47 @@ mark45/
 2. Spin up Ollama and pull `llama3.2:3b`.
 3. Activate virtual environment and install packages: `pip install -r requirements.txt`
 
-### Start the FastAPI API Server
-Start the backend app:
-```bash
-python -m uvicorn mark45.api.main:app --reload --port 8000
-```
+---
+
+## 🎙️ Local voice Setup
+
+### 1. (Optional) Configure high-quality Piper TTS
+To run the high-fidelity neural Piper speaker instead of the default native OS speaker:
+* **Download Piper executable**: Get the release matching your OS from [rhasspy/piper](https://github.com/rhasspy/piper/releases).
+* **Download ONNX Voice Model**: Download the voice model [en_US-lessac-medium.onnx](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/lessac/medium) and put it inside `mark45/voice/`.
+* **Add to `.env`**:
+  ```env
+  PIPER_PATH=path/to/piper.exe
+  PIPER_MODEL_PATH=mark45/voice/en_US-lessac-medium.onnx
+  ```
+If these files are missing, the loop automatically falls back to your OS's built-in text-to-speech framework (`pyttsx3`) so it works out-of-the-box.
 
 ---
 
-## 🔒 Security & Sandbox Guardrails
+## 🔍 Voice Verification Step
 
-1. **Path Isolation**: File tools (`read_file`, `write_file`) resolve paths inside the absolute sandbox subdirectory (`mark45/sandbox/`). They block directory traversal attempts (`../`) and throw immediate security exceptions.
-2. **Execution Time Limits**: Python scripts executed via `run_python` are running inside isolated subprocesses with a hard **10-second timeout** and local directory scoping.
-3. **Allowlisted Shells**: Terminal commands run via `run_command` are validated against a strict set of permitted prefixes (`dir`, `ls`, `cat`, `type`, `echo`, `git status`, `git diff`, `pwd`). Operators like `;`, `&&`, `||`, and `|` are strictly blocked.
-4. **Agent Step Limits**: The coding agent runs a ReAct reasoning cycle limited to **8 steps maximum**. If it cannot complete the goal in 8 steps, it automatically halts to prevent infinite loops.
+Run the hands-free voice loop using your local python environment:
 
----
-
-## 🔍 Agent Verification Step
-
-Test the secure agent by sending a programming task that requires coding, executing, detecting a bug, and fixing it:
-
-### Run the Agent via cURL:
 ```bash
-curl -X POST "http://localhost:8000/api/agent/code" \
-     -H "Content-Type: application/json" \
-     -d '{"goal": "Write a python file named add.py that defines a function adding two inputs. The file must print the output of add(5, 5). Write the function with a bug (e.g. subtracting instead of adding), run it, see the wrong output, fix the bug, run it again to verify, and present the final code."}'
+# Inside the virtual environment from the mark45/ folder:
+python mark45/voice/loop.py
 ```
 
-### Expected Output & Logs:
-* **Terminal Server Logs**:
-  You will see the agent's reasoning loop steps logged to the FastAPI console:
-  ```text
-  INFO:mark45.agents.coding_agent:Agent Loop Step 1/8
-  INFO:mark45.agents.coding_agent:Executing tool 'write_file' with args {'path': 'add.py', 'content': 'def add(a, b):\n    return a - b\n\nprint(add(5, 5))'}
-  INFO:mark45.agents.coding_agent:Agent Loop Step 2/8
-  INFO:mark45.agents.coding_agent:Executing tool 'run_python' with args {'code': 'import os\nwith open("add.py", "r") as f:\n    exec(f.read())'}
-  INFO:mark45.agents.coding_agent:Observation: 0
-  INFO:mark45.agents.coding_agent:Agent Loop Step 3/8
-  INFO:mark45.agents.coding_agent:Executing tool 'write_file' with args {'path': 'add.py', 'content': 'def add(a, b):\n    return a + b\n\nprint(add(5, 5))'}
-  INFO:mark45.agents.coding_agent:Agent Loop Step 4/8
-  INFO:mark45.agents.coding_agent:Executing tool 'run_python' with args {'code': 'import os\nwith open("add.py", "r") as f:\n    exec(f.read())'}
-  INFO:mark45.agents.coding_agent:Observation: 10
-  INFO:mark45.agents.coding_agent:Agent completed goal.
-  ```
-
-* **cURL Response**:
-  ```json
-  {
-    "final_answer": "The script 'add.py' has been successfully created, verified, corrected from subtracting to adding, and re-tested. The final correct output is 10.",
-    "steps": [
-      {
-        "step": 1,
-        "thought": "I will create add.py with a deliberate bug (subtraction instead of addition) and test it.",
-        "action": "write_file",
-        "args": {"path": "add.py", "content": "def add(a, b):\n    return a - b\nprint(add(5, 5))"},
-        "observation": "Successfully wrote to file 'add.py'."
-      },
-      ...
-    ]
-  }
-  ```
+### Expected End-to-End Behavior:
+1. **Console Status**: The program prints diagnostic indicators for GPU VRAM check, loads Whisper on CPU, and logs:
+   ```text
+   =========================================
+       MARK 45 LOCAL VOICE LINK ON
+   =========================================
+   Listening... Speak, and say your command.
+   =========================================
+   ```
+2. **Speech Detection**: When you speak, the system automatically detects voice activity, transcribes it, and prints the text to your console:
+   ```text
+   🎤 Listening...
+   Silence detected. Recording stopped.
+   User: Hello MARK 45, run system diagnostics.
+   ```
+3. **Response & TTS Playback**: MARK 45 generates the streaming text response and plays it via your system speaker.
+4. **Barge-in Interruption**: While the assistant is speaking, if you start talking, the voice loop immediately stops playing the speaker output, clearing the audio channel so it can listen to your new query.
+5. **VRAM Protection**: All voice operations run on the CPU (Whisper model inference and Piper voice processing), leaving your GPU VRAM completely clear for Ollama inference.
