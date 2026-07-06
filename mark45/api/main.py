@@ -11,6 +11,9 @@ from mark45.config.settings import settings
 from mark45.core.model_client import OllamaClient
 from mark45.memory.manager import MemoryManager
 from mark45.agents.coding_agent import CodingAgent
+from mark45.agents.planner import PlannerAgent
+from mark45.agents.router import TaskRouter
+from mark45.agents.orchestrator import Orchestrator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +42,15 @@ memory_manager = MemoryManager()
 # Initialize Coding Agent
 coding_agent = CodingAgent(ollama_client=ollama_client)
 
+# Initialize Planner Agent
+planner_agent = PlannerAgent(ollama_client=ollama_client)
+
+# Initialize Task Router
+task_router = TaskRouter(coding_agent=coding_agent, memory_manager=memory_manager)
+
+# Initialize Orchestrator
+orchestrator = Orchestrator(planner=planner_agent, router=task_router, memory=memory_manager)
+
 # Request & Response Schemas
 class Message(BaseModel):
     role: str
@@ -57,6 +69,10 @@ class AgentRequest(BaseModel):
 class AgentResponse(BaseModel):
     final_answer: str
     steps: List[Dict[str, Any]]
+
+class RunRequest(BaseModel):
+    goal: str
+
 
 
 def load_system_prompt() -> str:
@@ -234,5 +250,24 @@ async def run_agent_code(request: AgentRequest):
     except Exception as e:
         logger.error(f"Agent task execution failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/agent/run")
+async def run_agent_orchestrator(request: RunRequest):
+    """
+    Spins up the multi-agent orchestrator to plan and execute a goal,
+    streaming progress events back using Server-Sent Events (SSE).
+    """
+    async def event_generator():
+        try:
+            async for event in orchestrator.execute_goal(request.goal):
+                data = json.dumps(event)
+                yield f"data: {data}\n\n"
+        except Exception as e:
+            logger.error(f"Orchestration stream failed: {e}")
+            yield f"data: {json.dumps({'type': 'failed', 'reason': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 

@@ -1,10 +1,10 @@
-# 🤖 MARK 45 — Phase 4: Local Voice Interface (RTX 3050 Optimized)
+# 🤖 MARK 45 — Phase 5: Planner & Router Multi-Agent (RTX 3050 Optimized)
 
-MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 4 implementation adds a fully local voice link enabling hands-free microphone input, speech-to-text transcription (via faster-whisper on CPU), local speech synthesis (Piper TTS with native system speaker fallbacks), and dynamic barge-in (interruption) control.
+MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 5 implementation adds a robust Multi-Agent Orchestration layer. Given a complex goal, a **Planner** decomposes it into subtasks, a **Router** dispatches each subtask to the correct specialist (Coding Agent or RAG Research), and an **Orchestrator** coordinates the execution sequence while strictly enforcing global step limits and timeouts.
 
 ---
 
-## ⚙️ Project Structure (Phase 4)
+## ⚙️ Project Structure (Phase 5)
 ```text
 mark45/
 ├── core/
@@ -22,17 +22,16 @@ mark45/
 │   ├── python_tool.py   # Subprocess-sandboxed Python executor (10s timeout)
 │   └── terminal_tool.py # Allowlisted command execution shell
 ├── agents/
-│   └── coding_agent.py  # ReAct reasoning loop (8 steps max safety limit)
-├── voice/
-│   ├── stt.py           # faster-whisper CPU-locked speech transcriber
-│   ├── tts.py           # Piper TTS with native OS speaker fallback
-│   └── loop.py          # Audio capture, energy VAD, and barge-in execution loop
+│   ├── coding_agent.py  # ReAct reasoning coding agent
+│   ├── planner.py       # High-level task planner (max 6 subtasks)
+│   ├── router.py        # Specialist routing dispatcher
+│   └── orchestrator.py  # Execution coordinator (max 20 steps safety limit)
 ├── sandbox/             # Workspace isolation folder for file/python runs
 ├── config/
 │   ├── settings.py      # App configurations (Pydantic Settings)
 │   └── system_prompt.txt# System directives for the AI
 ├── api/
-│   └── main.py          # FastAPI gateway (Integrated with RAG & Agent endpoints)
+│   └── main.py          # FastAPI gateway (Integrated with RAG & Multi-Agent endpoints)
 ├── ui/
 │   └── index.html       # Vanilla JS SSE-powered chat UI
 ├── requirements.txt     # Python package requirements
@@ -48,47 +47,54 @@ mark45/
 2. Spin up Ollama and pull `llama3.2:3b`.
 3. Activate virtual environment and install packages: `pip install -r requirements.txt`
 
----
-
-## 🎙️ Local voice Setup
-
-### 1. (Optional) Configure high-quality Piper TTS
-To run the high-fidelity neural Piper speaker instead of the default native OS speaker:
-* **Download Piper executable**: Get the release matching your OS from [rhasspy/piper](https://github.com/rhasspy/piper/releases).
-* **Download ONNX Voice Model**: Download the voice model [en_US-lessac-medium.onnx](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/lessac/medium) and put it inside `mark45/voice/`.
-* **Add to `.env`**:
-  ```env
-  PIPER_PATH=path/to/piper.exe
-  PIPER_MODEL_PATH=mark45/voice/en_US-lessac-medium.onnx
-  ```
-If these files are missing, the loop automatically falls back to your OS's built-in text-to-speech framework (`pyttsx3`) so it works out-of-the-box.
-
----
-
-## 🔍 Voice Verification Step
-
-Run the hands-free voice loop using your local python environment:
-
+### Start the FastAPI API Server
+Start the backend app:
 ```bash
-# Inside the virtual environment from the mark45/ folder:
-python mark45/voice/loop.py
+python -m uvicorn mark45.api.main:app --reload --port 8000
 ```
 
-### Expected End-to-End Behavior:
-1. **Console Status**: The program prints diagnostic indicators for GPU VRAM check, loads Whisper on CPU, and logs:
-   ```text
-   =========================================
-       MARK 45 LOCAL VOICE LINK ON
-   =========================================
-   Listening... Speak, and say your command.
-   =========================================
-   ```
-2. **Speech Detection**: When you speak, the system automatically detects voice activity, transcribes it, and prints the text to your console:
-   ```text
-   🎤 Listening...
-   Silence detected. Recording stopped.
-   User: Hello MARK 45, run system diagnostics.
-   ```
-3. **Response & TTS Playback**: MARK 45 generates the streaming text response and plays it via your system speaker.
-4. **Barge-in Interruption**: While the assistant is speaking, if you start talking, the voice loop immediately stops playing the speaker output, clearing the audio channel so it can listen to your new query.
-5. **VRAM Protection**: All voice operations run on the CPU (Whisper model inference and Piper voice processing), leaving your GPU VRAM completely clear for Ollama inference.
+---
+
+## 🛡️ Multi-Agent Guardrails
+
+1. **Step Budget**: The orchestrator counts total steps executed across all sub-agents. It halts immediately if the total exceeds **20 steps** to prevent infinite loops and runaway compute.
+2. **Global Timeout**: A strict limit of **180 seconds** is enforced for overall goal execution.
+3. **Double Failure Halt**: If any individual subtask fails twice, the orchestrator immediately halts the entire pipeline and reports the trace to prevent cascading failures.
+4. **Intermediate Memory Registration**: Success outputs of each subtask are written directly into the `MemoryManager` to inform future context.
+
+---
+
+## 🔍 Orchestrator Verification Step
+
+Test the multi-agent orchestration by submitting a compound goal that requires reading a file, summarizing it, and writing a new file:
+
+### 1. Create a Test file in the Sandbox
+Create a source file `notes.txt` inside your sandbox folder `mark45/sandbox/`:
+```text
+MARK 45 is a local-first personal AI assistant built for Chetan Walkoli.
+It incorporates a FastAPI backend, vector memories via Qdrant, and local voice links.
+Current deployment phase is Phase 5 (Multi-Agent System).
+Future goals include Phase 6 (Fine-Tuning).
+```
+
+### 2. Submit the Goal via cURL:
+```bash
+curl -X POST "http://localhost:8000/api/agent/run" \
+     -H "Content-Type: application/json" \
+     -d '{"goal": "Read notes.txt inside the sandbox, summarize it, and write the summary to summary.txt inside the sandbox."}'
+```
+
+### 3. Expected Streamed Output:
+The server will return an SSE stream (Server-Sent Events) tracing the entire coordination. You will see:
+* **Plan Event**:
+  ```json
+  {"type": "plan", "tasks": [{"id": 1, "description": "Read the contents of notes.txt", "specialist": "coding_agent"}, {"id": 2, "description": "Summarize the contents of notes.txt and write the summary to summary.txt", "specialist": "coding_agent"}]}
+  ```
+* **Step Logs**:
+  Shows start, execution, and outputs of each step.
+* **Complete Event**:
+  ```json
+  {"type": "complete", "final_context": "...", "steps_used": 5, "duration_seconds": 12.4}
+  ```
+
+Check `mark45/sandbox/summary.txt` to verify the summary was correctly written!
