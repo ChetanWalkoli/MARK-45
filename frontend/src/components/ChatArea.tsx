@@ -7,10 +7,10 @@ import { MessageBubble } from './MessageBubble';
 interface ChatAreaProps { activeMode: AIMode; }
 
 const AI_MODELS = [
+  { id: 'mark-45', name: 'MARK 45', icon: BrainCircuit, color: '#FFB347', desc: 'Local developer agent' },
   { id: 'gemini-flash', name: 'Gemini 1.5 Flash', icon: Sparkles, color: '#00CFFF', desc: 'High-speed multimodal' },
   { id: 'gpt-4o', name: 'GPT-4o', icon: Cpu, color: '#a855f7', desc: 'Most capable reasoning' },
   { id: 'claude-3.5', name: 'Claude 3.5 Sonnet', icon: Zap, color: '#f59e0b', desc: 'Advanced coding & writing' },
-  { id: 'mark-45', name: 'MARK 45', icon: BrainCircuit, color: '#FFB347', desc: 'Local developer agent' },
 ];
 
 const WELCOME_PROMPTS = [
