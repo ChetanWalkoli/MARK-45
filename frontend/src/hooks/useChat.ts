@@ -9,7 +9,7 @@ export interface Message {
   timestamp: Date;
 }
 
-export function useChat(activeMode: AIMode) {
+export function useChat(activeMode: AIMode, selectedModelId: string) {
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = localStorage.getItem('mark_45_chat_history');
@@ -69,7 +69,7 @@ export function useChat(activeMode: AIMode) {
         );
 
       try {
-        const directStream = streamGeminiResponse(chatHistory, activeMode);
+        const directStream = streamGeminiResponse(chatHistory, activeMode, selectedModelId);
         for await (const textChunk of directStream) {
           appendToken(textChunk);
         }
@@ -80,7 +80,7 @@ export function useChat(activeMode: AIMode) {
         setIsLoading(false);
       }
     },
-    [messages, activeMode]
+    [messages, activeMode, selectedModelId]
   );
 
   const clearMessages = useCallback(() => {

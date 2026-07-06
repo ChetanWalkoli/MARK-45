@@ -21,9 +21,9 @@ const WELCOME_PROMPTS = [
 ];
 
 export function ChatArea({ activeMode }: ChatAreaProps) {
-  const { messages, isLoading, sendMessage, clearMessages } = useChat(activeMode);
-  const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState(AI_MODELS[0]);
+  const { messages, isLoading, sendMessage, clearMessages } = useChat(activeMode, selectedModel.id);
+  const [input, setInput] = useState('');
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

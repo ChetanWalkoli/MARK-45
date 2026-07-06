@@ -2,8 +2,65 @@ import { MASTER_PROMPT } from '../masterPrompt';
 
 export async function* streamGeminiResponse(
   messages: { role: string; content: string }[],
-  mode: string
+  mode: string,
+  modelId: string = 'gemini-flash'
 ) {
+  if (modelId === 'mark-45') {
+    try {
+      const response = await fetch("http://localhost:8000/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          stream: true
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        yield `Error: [${response.status}] ${errText || 'Failed to fetch from local MARK 45 backend.'}`;
+        return;
+      }
+
+      if (!response.body) throw new Error("No response body");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') continue;
+            
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.text) {
+                yield parsed.text;
+              } else if (parsed.error) {
+                yield `Error: ${parsed.error}`;
+              }
+            } catch (e) {
+              // Ignore partial chunk JSON parse errors
+            }
+          }
+        }
+      }
+      return;
+    } catch (error: any) {
+      yield `Error: Failed to connect to local MARK 45 backend at http://localhost:8000. Ensure your FastAPI server is running. Error details: ${error.message}`;
+      return;
+    }
+  }
+
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     yield "Error: VITE_GEMINI_API_KEY is not set in the environment.";
