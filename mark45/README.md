@@ -1,10 +1,10 @@
-# 🤖 MARK 45 — Phase 5: Planner & Router Multi-Agent (RTX 3050 Optimized)
+# 🤖 MARK 45 — Phase 6: QLoRA Fine-Tuning (RTX 3050 Optimized)
 
-MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 5 implementation adds a robust Multi-Agent Orchestration layer. Given a complex goal, a **Planner** decomposes it into subtasks, a **Router** dispatches each subtask to the correct specialist (Coding Agent or RAG Research), and an **Orchestrator** coordinates the execution sequence while strictly enforcing global step limits and timeouts.
+MARK 45 is a local-first, private personal AI assistant system running locally on your hardware. This Phase 6 implementation adds a fully local QLoRA fine-tuning pipeline to customize model weights (specifically Qwen2.5-1.5B or Llama3.2-3B) using your private documents, notes, or chat logs — completely private and offline.
 
 ---
 
-## ⚙️ Project Structure (Phase 5)
+## ⚙️ Project Structure (Phase 6)
 ```text
 mark45/
 ├── core/
@@ -23,15 +23,20 @@ mark45/
 │   └── terminal_tool.py # Allowlisted command execution shell
 ├── agents/
 │   ├── coding_agent.py  # ReAct reasoning coding agent
-│   ├── planner.py       # High-level task planner (max 6 subtasks)
+│   ├── planner.py       # High-level task planner
 │   ├── router.py        # Specialist routing dispatcher
-│   └── orchestrator.py  # Execution coordinator (max 20 steps safety limit)
+│   └── orchestrator.py  # Execution coordinator
+├── training/
+│   ├── prepare_data.py  # Cleans, hashes, dedups raw notes into training format
+│   ├── qlora_train.py   # QLoRA training script (NF4, PEFT, TRL, CPU offloads)
+│   └── merge_and_export.py # Merges LoRA adapters and exports GGUF instructions
 ├── sandbox/             # Workspace isolation folder for file/python runs
 ├── config/
 │   ├── settings.py      # App configurations (Pydantic Settings)
+│   ├── train.yaml       # Hyperparameters for QLoRA training
 │   └── system_prompt.txt# System directives for the AI
 ├── api/
-│   └── main.py          # FastAPI gateway (Integrated with RAG & Multi-Agent endpoints)
+│   └── main.py          # FastAPI gateway
 ├── ui/
 │   └── index.html       # Vanilla JS SSE-powered chat UI
 ├── requirements.txt     # Python package requirements
@@ -44,57 +49,60 @@ mark45/
 
 ### Prerequisites
 1. Start Qdrant in Docker: `docker compose up -d`
-2. Spin up Ollama and pull `llama3.2:3b`.
-3. Activate virtual environment and install packages: `pip install -r requirements.txt`
+2. Activate virtual environment and install packages: `pip install -r requirements.txt`
 
-### Start the FastAPI API Server
-Start the backend app:
+---
+
+## 🛠️ Fine-Tuning Pipeline
+
+### 1. Data Preparation
+Clean, deduplicate, and split your raw data (JSON QA lists, text transcripts) into training (`train.jsonl`) and validation (`val.jsonl`) datasets. If no raw data is specified, the script automatically bootstraps with a default dataset about MARK 45:
 ```bash
-python -m uvicorn mark45.api.main:app --reload --port 8000
+python mark45/training/prepare_data.py
+```
+
+### 2. Run QLoRA Training
+Execute local fine-tuning. The script runs preflight VRAM check. If available VRAM is under 8GB, it automatically selects a 1.5B base model, decreases context length to 512, sets batch size to 1, and enables double quantization to guarantee zero Out-Of-Memory (OOM) failures:
+```bash
+python mark45/training/qlora_train.py
+```
+*Note: If no GPU is detected, training runs on CPU (with Qwen-0.5B fallback) but will be very slow. In this case, we recommend renting a cloud GPU (e.g. RunPod / Vast.ai ~$0.30/hr) to run training, and transferring adapter checkpoints back to your local machine.*
+
+### 3. Merge Adapters
+Merge the trained LoRA weights back into the baseline model:
+```bash
+python mark45/training/merge_and_export.py
 ```
 
 ---
 
-## 🛡️ Multi-Agent Guardrails
+## 🔍 GGUF & Ollama Integration (Verification)
 
-1. **Step Budget**: The orchestrator counts total steps executed across all sub-agents. It halts immediately if the total exceeds **20 steps** to prevent infinite loops and runaway compute.
-2. **Global Timeout**: A strict limit of **180 seconds** is enforced for overall goal execution.
-3. **Double Failure Halt**: If any individual subtask fails twice, the orchestrator immediately halts the entire pipeline and reports the trace to prevent cascading failures.
-4. **Intermediate Memory Registration**: Success outputs of each subtask are written directly into the `MemoryManager` to inform future context.
+Once the merge completes, compile and load it directly into Ollama:
 
----
-
-## 🔍 Orchestrator Verification Step
-
-Test the multi-agent orchestration by submitting a compound goal that requires reading a file, summarizing it, and writing a new file:
-
-### 1. Create a Test file in the Sandbox
-Create a source file `notes.txt` inside your sandbox folder `mark45/sandbox/`:
-```text
-MARK 45 is a local-first personal AI assistant built for Chetan Walkoli.
-It incorporates a FastAPI backend, vector memories via Qdrant, and local voice links.
-Current deployment phase is Phase 5 (Multi-Agent System).
-Future goals include Phase 6 (Fine-Tuning).
-```
-
-### 2. Submit the Goal via cURL:
-```bash
-curl -X POST "http://localhost:8000/api/agent/run" \
-     -H "Content-Type: application/json" \
-     -d '{"goal": "Read notes.txt inside the sandbox, summarize it, and write the summary to summary.txt inside the sandbox."}'
-```
-
-### 3. Expected Streamed Output:
-The server will return an SSE stream (Server-Sent Events) tracing the entire coordination. You will see:
-* **Plan Event**:
-  ```json
-  {"type": "plan", "tasks": [{"id": 1, "description": "Read the contents of notes.txt", "specialist": "coding_agent"}, {"id": 2, "description": "Summarize the contents of notes.txt and write the summary to summary.txt", "specialist": "coding_agent"}]}
-  ```
-* **Step Logs**:
-  Shows start, execution, and outputs of each step.
-* **Complete Event**:
-  ```json
-  {"type": "complete", "final_context": "...", "steps_used": 5, "duration_seconds": 12.4}
-  ```
-
-Check `mark45/sandbox/summary.txt` to verify the summary was correctly written!
+1. **Clone and setup llama.cpp (for quantization conversions)**:
+   ```bash
+   git clone https://github.com/ggerganov/llama.cpp.git
+   pip install -r llama.cpp/requirements.txt
+   ```
+2. **Convert weights to GGUF**:
+   ```bash
+   python llama.cpp/convert_hf_to_gguf.py ./merged_model --outfile mark45_custom.gguf
+   ```
+3. **Build custom Ollama model**:
+   Create a file `Modelfile` inside your `mark45/` directory:
+   ```text
+   FROM ./mark45_custom.gguf
+   PARAMETER temperature 0.7
+   SYSTEM "You are MARK 45 — Chetan's custom-trained offline co-pilot. Be direct."
+   ```
+   Load it into Ollama:
+   ```bash
+   ollama create mark45-custom -f Modelfile
+   ```
+4. **Wire into MARK 45 API**:
+   Update your local `.env` configuration file to point to your new model:
+   ```env
+   MODEL_NAME=mark45-custom
+   ```
+   Restart uvicorn server. Your API `/api/chat` and UI will now run on top of your personalized, fine-tuned model!

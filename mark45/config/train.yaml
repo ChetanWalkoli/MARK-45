@@ -1,0 +1,54 @@
+# ==========================================
+# MARK 45 QLoRA Fine-Tuning Hyperparameters
+# Optimized for RTX 3050 (8GB VRAM)
+# ==========================================
+
+# Base model configurations
+# We target 1B-3B models only on 8GB VRAM. 7B models will run Out-Of-Memory (OOM).
+model:
+  base_model_name: "Qwen/Qwen2.5-1.5B-Instruct"  # Safe default for RTX 3050 (8GB)
+  fallback_model_name: "Qwen/Qwen2.5-0.5B-Instruct" # Fallback if system RAM/VRAM is highly constrained
+  alternative_model_name: "meta-llama/Llama-3.2-3B-Instruct" # Use this if you have full 8GB free VRAM
+
+# LoRA Adapter Configuration
+lora:
+  r: 16                # LoRA Rank (higher means more parameters, but uses more memory). 8 or 16 is optimal.
+  alpha: 32            # LoRA Alpha scaling factor (typically double the Rank value)
+  dropout: 0.05        # Dropout probability for LoRA layers to prevent overfitting
+  target_modules:      # Target attention and feed-forward projections to fine-tune
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# Quantization Configuration (4-bit NF4)
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"        # NormalFloat4 (NF4) is mathematically optimal for weights
+  bnb_4bit_use_double_quant: true   # Quantizes quantization constants to save extra 0.4 bits/weight
+  bnb_4bit_compute_dtype: "bfloat16" # Use bfloat16 for computation if supported, else float16
+
+# Training Arguments (Memory Optimization Parameters)
+training:
+  max_seq_length: 512          # Keep sequences short (512 or 1024) to contain KV-cache VRAM usage
+  per_device_train_batch_size: 1 # Batch size of 1. Do not increase.
+  gradient_accumulation_steps: 16 # Accumulate gradients over 16 steps to simulate a batch size of 16
+  learning_rate: 0.0002        # 2e-4 is the standard starting LR for LoRA fine-tunes
+  lr_scheduler_type: "cosine"  # Cosine learning rate decay
+  warmup_ratio: 0.03           # Gradual warm up LR over first 3% of training steps
+  num_train_epochs: 3          # Standard epochs
+  weight_decay: 0.01
+  optim: "paged_adamw_8bit"    # Paged AdamW offloads optimizer states to CPU RAM if needed, preventing OOM
+  logging_steps: 10
+  eval_steps: 50
+  save_steps: 100
+  evaluation_strategy: "steps"
+  save_strategy: "steps"
+  output_dir: "./results"       # Path to save adapter checkpoints
+  report_to: "none"            # Set to "wandb" if you want Weights & Biases tracking
+  gradient_checkpointing: true # Recalculates activation layers during backward pass instead of storing (saves major VRAM)
