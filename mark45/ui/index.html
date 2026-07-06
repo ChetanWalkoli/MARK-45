@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARK 45 — SYSTEM ON</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #03050b;
+            --bg-panel: rgba(8, 11, 22, 0.95);
+            --border-glow: rgba(0, 207, 255, 0.15);
+            --brand-gold: #FFB347;
+            --brand-cyan: #00CFFF;
+            --brand-red: #d32f2f;
+            --text-main: #e2e8f0;
+            --text-muted: #6b7280;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 80% 20%, rgba(0, 207, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 20% 80%, rgba(211, 47, 47, 0.03) 0%, transparent 50%);
+        }
+
+        /* Ambient scanlines */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 9999;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: rgba(5, 7, 15, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-glow);
+            z-index: 10;
+        }
+
+        .header-title {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            font-size: 18px;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 0 15px rgba(0, 207, 255, 0.5);
+        }
+
+        .header-title span {
+            color: var(--brand-gold);
+        }
+
+        .status-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--brand-cyan);
+            background: rgba(0, 207, 255, 0.08);
+            border: 1px solid rgba(0, 207, 255, 0.25);
+            padding: 4px 10px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 0 8px rgba(0, 207, 255, 0.15);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--brand-cyan);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+            height: calc(100vh - 65px);
+        }
+
+        #chat-history {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 24px;
+            padding-right: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        /* Custom Scrollbar */
+        #chat-history::-webkit-scrollbar {
+            width: 4px;
+        }
+        #chat-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #chat-history::-webkit-scrollbar-thumb {
+            background: rgba(0, 207, 255, 0.2);
+            border-radius: 99px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 14px;
+            word-wrap: break-word;
+            position: relative;
+            animation: slideIn 0.25s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: rgba(0, 207, 255, 0.06);
+            border: 1px solid rgba(0, 207, 255, 0.2);
+            border-top-right-radius: 2px;
+            color: #ffffff;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-top-left-radius: 2px;
+        }
+
+        .message.assistant::before {
+            content: "MARK 45";
+            position: absolute;
+            top: -18px;
+            left: 2px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            color: var(--brand-gold);
+        }
+
+        .message.user::before {
+            content: "CHETAN";
+            position: absolute;
+            top: -18px;
+            right: 2px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            color: var(--brand-cyan);
+        }
+
+        .input-area {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s ease;
+        }
+
+        .input-area:focus-within {
+            border-color: rgba(0, 207, 255, 0.4);
+        }
+
+        #message-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-main);
+            padding: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            height: 48px;
+            max-height: 120px;
+        }
+
+        #message-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        #send-btn {
+            background: linear-gradient(135deg, var(--brand-cyan), #0070F3);
+            color: #000000;
+            border: none;
+            outline: none;
+            padding: 0 20px;
+            height: 40px;
+            border-radius: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 800;
+            font-size: 12px;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 207, 255, 0.2);
+        }
+
+        #send-btn:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 16px rgba(0, 207, 255, 0.4);
+        }
+
+        #send-btn:disabled {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .welcome-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 16px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .welcome-logo {
+            width: 180px;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 0 12px rgba(0, 207, 255, 0.25));
+        }
+
+        .welcome-title {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 24px;
+            letter-spacing: 0.1em;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.6) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .welcome-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-title">MARK <span>45</span></div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            System Online
+        </div>
+    </header>
+
+    <main>
+        <div id="chat-history">
+            <div class="welcome-container" id="welcome-view">
+                <img src="/logo.png" alt="MARK 45 Logo" class="welcome-logo">
+                <h1 class="welcome-title">SYSTEM INITIALIZED</h1>
+                <p class="welcome-desc">RTX 3050 VRAM optimized gateway.<br>Ollama local brain connected.<br>Awaiting commands...</p>
+            </div>
+        </div>
+
+        <form id="chat-form" class="input-area">
+            <input type="text" id="message-input" placeholder="Initiate handshake protocol..." autocomplete="off" required>
+            <button type="submit" id="send-btn">SEND</button>
+        </form>
+    </main>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const chatHistory = document.getElementById('chat-history');
+        const welcomeView = document.getElementById('welcome-view');
+        const sendBtn = document.getElementById('send-btn');
+
+        const API_URL = 'http://localhost:8000';
+
+        function appendMessage(role, content) {
+            // Remove welcome view if present
+            if (welcomeView) {
+                welcomeView.style.display = 'none';
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.innerText = content;
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            return messageDiv;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Clear input and append user message
+            messageInput.value = '';
+            appendMessage('user', message);
+
+            // Create assistant placeholder message
+            const assistantBubble = appendMessage('assistant', '');
+            
+            // Disable input & button while streaming
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // Start SSE stream
+            try {
+                const streamUrl = `${API_URL}/api/chat/stream?message=${encodeURIComponent(message)}`;
+                const eventSource = new EventSource(streamUrl);
+
+                eventSource.onmessage = (event) => {
+                    if (event.data === '[DONE]') {
+                        eventSource.close();
+                        messageInput.disabled = false;
+                        sendBtn.disabled = false;
+                        messageInput.focus();
+                        return;
+                    }
+
+                    try {
+                        const parsed = JSON.parse(event.data);
+                        if (parsed.error) {
+                            assistantBubble.innerText = `Error: ${parsed.error}`;
+                            eventSource.close();
+                        } else if (parsed.text) {
+                            assistantBubble.innerText += parsed.text;
+                        }
+                    } catch (err) {
+                        console.error('Failed to parse SSE event:', err);
+                    }
+                    
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                };
+
+                eventSource.onerror = (err) => {
+                    console.error('SSE connection error:', err);
+                    assistantBubble.innerText = 'Connection lost. Ensure the backend FastAPI server is running on port 8000.';
+                    eventSource.close();
+                    messageInput.disabled = false;
+                    sendBtn.disabled = false;
+                };
+
+            } catch (err) {
+                assistantBubble.innerText = `Connection failed: ${err.message}`;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
